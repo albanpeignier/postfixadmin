@@ -1,0 +1,21 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 03_fetchmail-ssl-upgrade-target-version.dpatch by  <alban.peignier@free.fr>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: SSL support for fetchmail (change upgrade target version)
+
+@DPATCH@
+
+diff --git a/upgrade.php b/upgrade.php
+index 0bce376..ee7f9b0 100644
+--- a/upgrade.php
++++ b/upgrade.php
+@@ -95,7 +95,7 @@ _do_upgrade($version);
+ 
+ function _do_upgrade($current_version) {
+     global $CONF;
+-    $target_version = preg_replace('/[^0-9]/', '', '$Revision: 397 $');
++    $target_version = preg_replace('/[^0-9]/', '', '$Revision: 479 $');
+ 
+     if ($current_version >= $target_version) {
+ # already up to date

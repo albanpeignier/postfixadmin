@@ -1,18 +1,19 @@
 #!/usr/bin/make -f
 
 # Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+export DH_VERBOSE=1
 
-clean: 
+include /usr/share/dpatch/dpatch.make
+
+clean: clean-patched unpatch
+clean-patched:
 	dh_testdir
 	dh_testroot
 	dh_clean -X.svn
-	
 	debconf-updatepo
 
-build: 
+build: patch
 # nothing to do
-
 
 # Build architecture-independent files here.
 binary-indep: binary-indep-stamp
@@ -35,13 +36,17 @@ binary-indep-stamp:
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb
-	
 	touch $@
 
 # Build architecture-dependent files here.
 binary-arch: 
 # nothing to do
 
-binary: binary-indep 
+binary: build binary-indep 
 
 .PHONY: build clean binary-indep binary-arch binary
+
+patch: patch-stamp
+patch-stamp:
+	dpatch apply-all -v
+	dpatch cat-all >patch-stamp

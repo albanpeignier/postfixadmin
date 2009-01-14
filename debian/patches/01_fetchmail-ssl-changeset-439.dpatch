@@ -1,0 +1,692 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 01_fetchmail-ssl-changeset-439.dpatch by  <alban.peignier@free.fr>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: SSL support for fetchmail (changeset 439)
+
+@DPATCH@
+
+Index: trunk/upgrade.php
+===================================================================
+--- trunk/upgrade.php	(revision 438)
++++ trunk/upgrade.php	(revision 439)
+@@ -883,3 +883,18 @@ function upgrade_373_mysql() { # MySQL only
+         $result = db_query_parsed($sql);
+     }
+ }
++
++/**
++ * add ssl option for fetchmail
++ */
++function upgrade_439_mysql() {
++    $table_fetchmail = table_by_key('fetchmail');
++    db_query_parsed("
++        ALTER TABLE `$table_fetchmail` ADD `ssl` TINYINT( 1 ) UNSIGNED NOT NULL DEFAULT '0' AFTER `protocol` ;
++    ");
++}
++function upgrade_439_pgsql() {
++    db_query_parsed("
++        ALTER TABLE $table_fetchmail ADD COLUMN ssl BOOLEAN NOT NULL DEFAULT false;
++    ");
++}
+Index: trunk/ADDITIONS/fetchmail.pl
+===================================================================
+--- trunk/ADDITIONS/fetchmail.pl	(revision 438)
++++ trunk/ADDITIONS/fetchmail.pl	(revision 439)
+@@ -18,14 +18,14 @@
+ $dbh = DBI->connect($dsn, $user, $password) || die "cannot connect the database";
+ 
+ $sql=<<SQL;
+-SELECT id,mailbox,src_server,src_auth,src_user,src_password,src_folder,fetchall,keep,protocol,mda,extra_options 
++SELECT id,mailbox,src_server,src_auth,src_user,src_password,src_folder,fetchall,keep,protocol,mda,extra_options,ssl 
+ FROM fetchmail
+ WHERE unix_timestamp(now())-unix_timestamp(date) > poll_time*60
+ SQL
+ 
+ my (%config);
+ map{
+-	my ($id,$mailbox,$src_server,$src_auth,$src_user,$src_password,$src_folder,$fetchall,$keep,$protocol,$mda,$extra_options)=@$_;
++	my ($id,$mailbox,$src_server,$src_auth,$src_user,$src_password,$src_folder,$fetchall,$keep,$protocol,$mda,$extra_options,$ssl)=@$_;
+ 	
+ 	$cmd="user '${src_user}' there with password '".decode_base64($src_password)."'";
+ 	$cmd.=" folder '${src_folder}'" if ($src_folder);
+@@ -36,6 +36,7 @@
+ 	
+ 	$cmd.=" keep" if ($keep);
+ 	$cmd.=" fetchall" if ($fetchall);
++	$cmd.=" ssl" if ($ssl);
+ 	$cmd.=" ".$extra_options if ($extra_options);
+ 	
+ 	$text=<<TXT;
+Index: trunk/fetchmail.php
+===================================================================
+--- trunk/fetchmail.php	(revision 438)
++++ trunk/fetchmail.php	(revision 439)
+@@ -63,6 +63,7 @@
+    "fetchall"        => array(1,                1,                'bool'      ),
+    "keep"            => array(1,                1,                'bool'      ),
+    "protocol"        => array(1,                1,                'enum'      ),
++   "ssl"             => array(1,                1,                'bool'      ),
+    "extra_options"   => array($extra_options,   $extra_options,   'longtext'  ),
+    "mda"             => array($extra_options,   $extra_options,   'longtext'  ),
+    "date"            => array(0,                $display_status,  'text'      ),
+Index: trunk/languages/fo.lang
+===================================================================
+--- trunk/languages/fo.lang	(revision 438)
++++ trunk/languages/fo.lang	(revision 439)
+@@ -402,6 +402,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -417,6 +418,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/cs.lang
+===================================================================
+--- trunk/languages/cs.lang	(revision 438)
++++ trunk/languages/cs.lang	(revision 439)
+@@ -409,6 +409,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Stahovat vše';
+ $PALANG['pFetchmail_field_keep']            = 'Nemazat';
+ $PALANG['pFetchmail_field_protocol']        = 'Protokol';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Parametry';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Datum';
+@@ -424,6 +425,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Získávat všechny staré (přečtené) i nové zprávy';
+ $PALANG['pFetchmail_desc_keep']             = 'Ponechávat stažené zprávy na vzdáleném mailserveru';
+ $PALANG['pFetchmail_desc_protocol']         = 'Použitý protokol';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra parametry pro fetchmail';
+ $PALANG['pFetchmail_desc_mda']              = 'Program pro doručení pošty do schránky (MDA)';
+ $PALANG['pFetchmail_desc_date']             = 'Datum posledního stažení pošty/změny konfigurace';
+Index: trunk/languages/mk.lang
+===================================================================
+--- trunk/languages/mk.lang	(revision 438)
++++ trunk/languages/mk.lang	(revision 439)
+@@ -398,6 +398,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -413,6 +414,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/es.lang
+===================================================================
+--- trunk/languages/es.lang	(revision 438)
++++ trunk/languages/es.lang	(revision 439)
+@@ -398,6 +398,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -413,6 +414,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/eu.lang
+===================================================================
+--- trunk/languages/eu.lang	(revision 438)
++++ trunk/languages/eu.lang	(revision 439)
+@@ -396,6 +396,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -411,6 +412,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/is.lang
+===================================================================
+--- trunk/languages/is.lang	(revision 438)
++++ trunk/languages/is.lang	(revision 439)
+@@ -396,6 +396,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -411,6 +412,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/hu.lang
+===================================================================
+--- trunk/languages/hu.lang	(revision 438)
++++ trunk/languages/hu.lang	(revision 439)
+@@ -410,6 +410,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -425,6 +426,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/sk.lang
+===================================================================
+--- trunk/languages/sk.lang	(revision 438)
++++ trunk/languages/sk.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/pt-br.lang
+===================================================================
+--- trunk/languages/pt-br.lang	(revision 438)
++++ trunk/languages/pt-br.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/ru.lang
+===================================================================
+--- trunk/languages/ru.lang	(revision 438)
++++ trunk/languages/ru.lang	(revision 439)
+@@ -410,6 +410,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Скачивать все';
+ $PALANG['pFetchmail_field_keep']            = 'Не удалять';
+ $PALANG['pFetchmail_field_protocol']        = 'Протокол';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Дополнительные параметры';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Дата';
+@@ -425,6 +426,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Скачивать и старые (виденные), и новые сообщения';
+ $PALANG['pFetchmail_desc_keep']             = 'Не удалять скачанные сообщения с удаленного сервера';
+ $PALANG['pFetchmail_desc_protocol']         = 'Какой протокол использовать';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Дополнительные параметры fetchmail';
+ $PALANG['pFetchmail_desc_mda']              = 'Агент доставки почты (Mail Delivery Agent)';
+ $PALANG['pFetchmail_desc_date']             = 'Дата последнего опроса/изменения конфигурации';
+Index: trunk/languages/tw.lang
+===================================================================
+--- trunk/languages/tw.lang	(revision 438)
++++ trunk/languages/tw.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/nb.lang
+===================================================================
+--- trunk/languages/nb.lang	(revision 438)
++++ trunk/languages/nb.lang	(revision 439)
+@@ -398,6 +398,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Hent alt';
+ $PALANG['pFetchmail_field_keep']            = 'Behold';
+ $PALANG['pFetchmail_field_protocol']        = 'Protokoll';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Ekstra alternativer';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Dato';
+@@ -413,6 +414,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Hent både gamle og nye meldinger';
+ $PALANG['pFetchmail_desc_keep']             = 'Behold meldingene på den eksterne e-postserveren';
+ $PALANG['pFetchmail_desc_protocol']         = 'Protokoll som skal brukes';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Ekstra fetchmail-alternativer';
+ $PALANG['pFetchmail_desc_mda']              = 'E-postleveringsagent (Mail Delivery Agent)';
+ $PALANG['pFetchmail_desc_date']             = 'Dato for siste spørring/konfigurasjonsendring';
+Index: trunk/languages/cn.lang
+===================================================================
+--- trunk/languages/cn.lang	(revision 438)
++++ trunk/languages/cn.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/en.lang
+===================================================================
+--- trunk/languages/en.lang	(revision 438)
++++ trunk/languages/en.lang	(revision 439)
+@@ -410,6 +410,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All';
+ $PALANG['pFetchmail_field_keep']            = 'Keep';
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active';
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Date';
+@@ -425,6 +426,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages';
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver';
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption';
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options';
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent';
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change';
+Index: trunk/languages/fr.lang
+===================================================================
+--- trunk/languages/fr.lang	(revision 438)
++++ trunk/languages/fr.lang	(revision 439)
+@@ -399,6 +399,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Tout récupérer';
+ $PALANG['pFetchmail_field_keep']            = 'Conserver';
+ $PALANG['pFetchmail_field_protocol']        = 'Protocole';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Options supplémentaires';
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -414,6 +415,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Récupérer tous les messages, nouveaux et déjà lus';
+ $PALANG['pFetchmail_desc_keep']             = 'Conserver une copie des messages sur le serveur';
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocole à utiliser';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Options supplémentaires de Fetchmail';
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date dernière vérification/changement configuration';
+Index: trunk/languages/et.lang
+===================================================================
+--- trunk/languages/et.lang	(revision 438)
++++ trunk/languages/et.lang	(revision 439)
+@@ -401,6 +401,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -416,6 +417,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/hr.lang
+===================================================================
+--- trunk/languages/hr.lang	(revision 438)
++++ trunk/languages/hr.lang	(revision 439)
+@@ -396,6 +396,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -411,6 +412,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/nl.lang
+===================================================================
+--- trunk/languages/nl.lang	(revision 438)
++++ trunk/languages/nl.lang	(revision 439)
+@@ -398,6 +398,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'alle berichten ophalen';
+ $PALANG['pFetchmail_field_keep']            = 'behouden';
+ $PALANG['pFetchmail_field_protocol']        = 'protocol';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'extra opties';
+ $PALANG['pFetchmail_field_mda']             = 'MD';
+ $PALANG['pFetchmail_field_date']            = 'datum';
+@@ -413,6 +414,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Haal zowel oude (gelezen) als nieuwe berichten op.';
+ $PALANG['pFetchmail_desc_keep']             = 'Opgehaalde berichten op de server achterlaten.';
+ $PALANG['pFetchmail_desc_protocol']         = 'het te gebruiken protocol.';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'extra opties voor fetchmail.';
+ $PALANG['pFetchmail_desc_mda']              = 'mail delivery agent.';
+ $PALANG['pFetchmail_desc_date']             = 'datum van de laatste berichtencontrole/configuratie verandering.';
+Index: trunk/languages/nn.lang
+===================================================================
+--- trunk/languages/nn.lang	(revision 438)
++++ trunk/languages/nn.lang	(revision 439)
+@@ -394,6 +394,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -409,6 +410,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/pl.lang
+===================================================================
+--- trunk/languages/pl.lang	(revision 438)
++++ trunk/languages/pl.lang	(revision 439)
+@@ -402,6 +402,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Pobierz wszystkie';
+ $PALANG['pFetchmail_field_keep']            = 'Pozostaw';
+ $PALANG['pFetchmail_field_protocol']        = 'Protokół';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Dodatkowe opcje';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Data';
+@@ -417,6 +418,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Pobierz zarówno stare (przeczytane) jak i nowe wiadomości';
+ $PALANG['pFetchmail_desc_keep']             = 'Pozostaw wiadomości na serwerze';
+ $PALANG['pFetchmail_desc_protocol']         = 'Protokół';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Dodatkowe opcje dla fetchmail';
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent';
+ $PALANG['pFetchmail_desc_date']             = 'Data ostatniego sprawdzenia/zmiany konfiguracji';
+Index: trunk/languages/it.lang
+===================================================================
+--- trunk/languages/it.lang	(revision 438)
++++ trunk/languages/it.lang	(revision 439)
+@@ -398,6 +398,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Ricevi tutto';
+ $PALANG['pFetchmail_field_keep']            = 'Conserva';
+ $PALANG['pFetchmail_field_protocol']        = 'Protocollo';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Data';
+@@ -413,6 +414,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Recupera anche i messaggi gi&agrave; letti';
+ $PALANG['pFetchmail_desc_keep']             = 'Conserva una copia del messaggi sul server remoto';
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocollo da usare';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Opzioni extra';
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent';
+ $PALANG['pFetchmail_desc_date']             = 'Data dell\'ultima modifica o attivit&agrave;';
+Index: trunk/languages/sl.lang
+===================================================================
+--- trunk/languages/sl.lang	(revision 438)
++++ trunk/languages/sl.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/lt.lang
+===================================================================
+--- trunk/languages/lt.lang	(revision 438)
++++ trunk/languages/lt.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/ca.lang
+===================================================================
+--- trunk/languages/ca.lang	(revision 438)
++++ trunk/languages/ca.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/da.lang
+===================================================================
+--- trunk/languages/da.lang	(revision 438)
++++ trunk/languages/da.lang	(revision 439)
+@@ -409,6 +409,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Hent alle';
+ $PALANG['pFetchmail_field_keep']            = 'Behold';
+ $PALANG['pFetchmail_field_protocol']        = 'Protokol';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Ekstra tilvalg';
+ $PALANG['pFetchmail_field_mda']             = 'MDA (Mail Delivery Agent)';
+ $PALANG['pFetchmail_field_date']            = 'Dato';
+@@ -424,6 +425,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Hent både gamle (sete) og nye beskeder';
+ $PALANG['pFetchmail_desc_keep']             = 'Gem hentede beskeder på den eksterne postserver';
+ $PALANG['pFetchmail_desc_protocol']         = 'Brug protokol';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Ekstra fetchmail flag';
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent';
+ $PALANG['pFetchmail_desc_date']             = 'Dato for seneste prøve/konfigurationsændring';
+Index: trunk/languages/tr.lang
+===================================================================
+--- trunk/languages/tr.lang	(revision 438)
++++ trunk/languages/tr.lang	(revision 439)
+@@ -397,6 +397,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -412,6 +413,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/de.lang
+===================================================================
+--- trunk/languages/de.lang	(revision 438)
++++ trunk/languages/de.lang	(revision 439)
+@@ -409,6 +409,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Alle abholen';
+ $PALANG['pFetchmail_field_keep']            = 'Behalten';
+ $PALANG['pFetchmail_field_protocol']        = 'Protokoll';
++$PALANG['pFetchmail_field_ssl']            = 'SSL aktiv';
+ $PALANG['pFetchmail_field_extra_options']   = 'Zus&auml;tzliche Optionen';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Datum';
+@@ -424,6 +425,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Sowohl alte (gelesene) als auch neue Nachrichten abholen';
+ $PALANG['pFetchmail_desc_keep']             = 'Abgeholte Nachrichten auf dem entfernten Server lassen';
+ $PALANG['pFetchmail_desc_protocol']         = 'Zu verwendendes Protokoll';
++$PALANG['pFetchmail_desc_ssl']             = 'Verschl&uuml;sselung mit SSL';
+ $PALANG['pFetchmail_desc_extra_options']    = 'Zus&auml;tzliche fetchmail-Optionen';
+ $PALANG['pFetchmail_desc_mda']              = 'Programm zur Mailauslieferung';
+ $PALANG['pFetchmail_desc_date']             = 'Datum des letzten Mailabrufs/Konfigurations&auml;nderung';
+Index: trunk/languages/bg.lang
+===================================================================
+--- trunk/languages/bg.lang	(revision 438)
++++ trunk/languages/bg.lang	(revision 439)
+@@ -398,6 +398,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -413,6 +414,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX
+Index: trunk/languages/sv.lang
+===================================================================
+--- trunk/languages/sv.lang	(revision 438)
++++ trunk/languages/sv.lang	(revision 439)
+@@ -399,6 +399,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Hämta samtliga';
+ $PALANG['pFetchmail_field_keep']            = 'Behåll';
+ $PALANG['pFetchmail_field_protocol']        = 'Protokoll';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra inställningsmöjligheter';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = 'Datum';
+@@ -414,6 +415,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Hämta både gamla lästa (visade) brev och nya';
+ $PALANG['pFetchmail_desc_keep']             = 'Behåll hämtade brev på mailservern';
+ $PALANG['pFetchmail_desc_protocol']         = 'Använd följande protokoll';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail inställningar';
+ $PALANG['pFetchmail_desc_mda']              = 'Mailserveragent (MDA)';
+ $PALANG['pFetchmail_desc_date']             = 'Datum för senaste kontroll/konfigurationsändring';
+Index: trunk/languages/ja.lang
+===================================================================
+--- trunk/languages/ja.lang	(revision 438)
++++ trunk/languages/ja.lang	(revision 439)
+@@ -408,6 +408,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'すべて取得';
+ $PALANG['pFetchmail_field_keep']            = '残す';
+ $PALANG['pFetchmail_field_protocol']        = 'プロトコル';
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = '追加オプション';
+ $PALANG['pFetchmail_field_mda']             = 'MDA';
+ $PALANG['pFetchmail_field_date']            = '日付';
+@@ -423,6 +424,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = '既読と新着メッセージを取得するか';
+ $PALANG['pFetchmail_desc_keep']             = 'リモートサーバに取得済メッセージを残すか';
+ $PALANG['pFetchmail_desc_protocol']         = '利用するプロトコル';
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = '追加の fetchmail オプション';
+ $PALANG['pFetchmail_desc_mda']              = 'メール配送エージェント (Mail Delivery Agent)';
+ $PALANG['pFetchmail_desc_date']             = '最終取得確認／設定変更日時';
+Index: trunk/languages/fi.lang
+===================================================================
+--- trunk/languages/fi.lang	(revision 438)
++++ trunk/languages/fi.lang	(revision 439)
+@@ -399,6 +399,7 @@
+ $PALANG['pFetchmail_field_fetchall']        = 'Fetch All'; # XXX
+ $PALANG['pFetchmail_field_keep']            = 'Keep'; # XXX
+ $PALANG['pFetchmail_field_protocol']        = 'Protocol'; # XXX
++$PALANG['pFetchmail_field_ssl']            = 'SSL active'; # XXX
+ $PALANG['pFetchmail_field_extra_options']   = 'Extra Options'; # XXX
+ $PALANG['pFetchmail_field_mda']             = 'MDA'; # XXX
+ $PALANG['pFetchmail_field_date']            = 'Date'; # XXX
+@@ -414,6 +415,7 @@
+ $PALANG['pFetchmail_desc_fetchall']         = 'Retrieve  both old (seen) and new messages'; # XXX
+ $PALANG['pFetchmail_desc_keep']             = 'Keep retrieved messages on the remote mailserver'; # XXX
+ $PALANG['pFetchmail_desc_protocol']         = 'Protocol to use'; # XXX
++$PALANG['pFetchmail_desc_ssl']             = 'SSL encryption'; # XXX
+ $PALANG['pFetchmail_desc_extra_options']    = 'Extra fetchmail Options'; # XXX
+ $PALANG['pFetchmail_desc_mda']              = 'Mail Delivery Agent'; # XXX
+ $PALANG['pFetchmail_desc_date']             = 'Date of last polling/configuration change'; # XXX

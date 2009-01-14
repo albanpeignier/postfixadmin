@@ -1,3 +1,9 @@
+postfixadmin (2.2.1.1-2) unstable; urgency=low
+
+  * include fetchmail ssl support from svn trunk
+
+ -- Alban Peignier <alban.peignier@free.fr>  Wed, 14 Jan 2009 17:31:12 +0100
+
 postfixadmin (2.2.1.1-1) unstable; urgency=low
 
   * Initial release (Closes: #247225)
