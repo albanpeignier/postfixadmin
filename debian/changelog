@@ -1,0 +1,7 @@
+postfixadmin (2.2.1.1-1) unstable; urgency=low
+
+  * Initial release (Closes: #247225)
+  * backup.php: removed dependency of not existing table `alias_domains`
+
+ -- Norman Messtorff <normes@normes.org>  Thu, 11 Nov 2008 02:09:24 +0200
+

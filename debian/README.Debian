@@ -1,0 +1,43 @@
+Postfix Admin for Debian
+=========================
+
+Installation
+------------
+1.) DBMS
+The DBMS configuration is mostly done during the package installation.
+You can find your DBMS credentials in /etc/postfixadmin/config.inc.php.
+MySQL and PostgreSQL servers are supported by this package.
+
+2.) Configuration file
+Please have a look at the configuration file `/etc/postfixadmin/config.inc.php`.
+You have to set at least 'postfix_admin_url', 'admin_email', 'default_aliases'
+to your requirements. If you're done, please set 'configured' the right way ("true" ;o) ).
+
+3.) Check settings, create DB structure and admin user
+Open http://yourserver.tld/postfixadmin/setup.php in a web browser.
+You should see a list of 'OK' messages.
+
+The setup.php script will attempt to create the database structure
+(or upgrade it if you're coming from a previous version). 
+Assuming everything is OK you can create the admin user using the form displayed.
+
+4.) Tell Postfix
+You have to tell postfix to use the newly created database.
+Some helpful documentation may be:
+ - /usr/share/doc/postfixadmin/
+ - /usr/share/doc/postfixadmin/examples/
+ - http://www.postfix.org/MYSQL_README.html
+ - http://www.postfix.org/PGSQL_README.html
+ - http://postfix.wiki.xs4all.nl/index.php?title=Virtual_Users_and_Domains_with_Courier-IMAP_and_MySQL
+
+
+Where to get help
+-----------------
+The first stop would be the Postfixadmin Website, Forum or IRC channel. 
+
+See :
+ - http://postfixadmin.sf.net
+ - #postfixadmin on irc.freenode.net
+
+
+ -- Norman Messtorff <normes@normes.org>, Tue Oct  7 15:01:53 2008

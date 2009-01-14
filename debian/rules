@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+clean: 
+	dh_testdir
+	dh_testroot
+	dh_clean -X.svn
+	
+	debconf-updatepo
+
+build: 
+# nothing to do
+
+
+# Build architecture-independent files here.
+binary-indep: binary-indep-stamp
+binary-indep-stamp: 
+	dh_testdir
+	dh_testroot
+	dh_prep -X.svn
+	dh_installdirs
+	dh_install
+	mv debian/postfixadmin/usr/share/postfixadmin/www/config.inc.php debian/postfixadmin/etc/postfixadmin/config.inc.php
+	dh_installchangelogs CHANGELOG.TXT
+	dh_installdocs
+	dh_installexamples
+	rm debian/postfixadmin/usr/share/doc/postfixadmin/examples/VIRTUAL_VACATION/index.php
+	dh_installdebconf
+	dh_link
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+	
+	touch $@
+
+# Build architecture-dependent files here.
+binary-arch: 
+# nothing to do
+
+binary: binary-indep 
+
+.PHONY: build clean binary-indep binary-arch binary

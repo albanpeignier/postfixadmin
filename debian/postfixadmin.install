@@ -1,0 +1,12 @@
+*.php		usr/share/postfixadmin/www
+admin		usr/share/postfixadmin/www
+css		usr/share/postfixadmin/www
+images		usr/share/postfixadmin/www
+languages	usr/share/postfixadmin/www
+motd.txt	usr/share/postfixadmin/www
+motd-users.txt	usr/share/postfixadmin/www
+templates	usr/share/postfixadmin/www
+users		usr/share/postfixadmin/www
+debian/apache.conf	etc/postfixadmin
+debian/lighttpd.conf	etc/postfixadmin
+debian/database.inc.php	usr/share/postfixadmin
